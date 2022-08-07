@@ -1,0 +1,19 @@
+# taken from https://github.com/rholder/grepby/blob/bc4a50edf8cee0202e4ea65108f9a92d5d44c5ce/.source_me_example
+
+# Explicitly set the go SDK we want to use and add its tools to the PATH.
+export GOROOT=$HOME/go-sdk/go-1.19
+export PATH=$PATH:$GOROOT/bin
+
+# Set GOPATH to a temporary location based on the name of the current working
+# directory. This is done because even when using go modules the go module cache
+# ends up in an inferred GOPATH if left unset.
+export GOPATH=$HOME/tmp/go-workspaces/${PWD##*/}
+
+# disable the passthrough proxy
+export GOPROXY=direct
+
+# disable the SUMDB lookup
+export GOSUMDB=off
+
+echo "GOROOT=${GOROOT}"
+echo "GOPATH=${GOPATH}"
