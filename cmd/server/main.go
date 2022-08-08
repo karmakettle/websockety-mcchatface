@@ -3,6 +3,7 @@ package main
 import (
   "flag"
   "fmt"
+  "github.com/gorilla/websocket"
   "net/http"
   "os"
 )
@@ -11,12 +12,12 @@ import (
   Requires POST, topic
 */
 func subscribe(w http.ResponseWriter, r *http.Request) {
-  if r.Method != http.MethodPost {
-    err := r.Method + " not allowed for " + "/subscribe"
-    fmt.Println(err)
-    http.Error(w, err,  http.StatusMethodNotAllowed)
-    return
-  }
+  //   if r.Method != http.MethodPost {
+  //   err := r.Method + " not allowed for " + "/subscribe"
+  //   fmt.Println(err)
+  //   http.Error(w, err,  http.StatusMethodNotAllowed)
+  //   return
+  // }
 
   topic := r.URL.Query().Get("topic")
   if !(len(topic) > 0) {
@@ -27,14 +28,27 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
   }
 
   fmt.Printf("%s /subscribe - topic %s\n", r.Method, topic)
+
+  u := websocket.Upgrader{}
+  c, err := u.Upgrade(w, r, nil)
+  if err != nil {
+    fmt.Println("Unable to establish connection: ", err)
+    return
+  }
+
+  fmt.Println("websocket successfully created woo!", c.LocalAddr())
 }
 
 /*
   Requires POST, topic, JSON body
+
+  No authentication, no need to be subscribed to a topic
+  before publishing. any entity can post any message to any
+  existing topic
+
+  Clients are only subscribed to one topic at a time
 */
 func publish(w http.ResponseWriter, r *http.Request) {
-  // websocket connection should already be established via /subscribe
-
   if r.Method != http.MethodPost {
     err := r.Method + " not allowed for " + "/publish"
     fmt.Println(err)
@@ -53,6 +67,9 @@ func publish(w http.ResponseWriter, r *http.Request) {
   // TODO require JSON body
 
   fmt.Printf("%s /publish - topic %s\n", r.Method, topic)
+
+  // write to all the conns in the topic queues
+  // if there's a failure, remove the cxn
 }
 
 func main() {
