@@ -1,9 +1,11 @@
 package main
 
 import (
+  "encoding/json"
   "flag"
   "fmt"
   "github.com/gorilla/websocket"
+  "io/ioutil"
   "net/http"
   "os"
 )
@@ -29,6 +31,9 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 
   fmt.Printf("%s /subscribe - topic %s\n", r.Method, topic)
 
+  //  maybe choose a reasonable buffer size
+  //  ReadBufferSize:  1024,
+  //  WriteBufferSize: 1024,
   u := websocket.Upgrader{}
   c, err := u.Upgrade(w, r, nil)
   if err != nil {
@@ -64,9 +69,23 @@ func publish(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  // TODO require JSON body
+  body, err := ioutil.ReadAll(r.Body)
+  if err != nil {
+    fmt.Println("Failed to read request body")
+    return
+  } else if string(body) == "" {
+    fmt.Println("Empty body, unable to publish")
+    return
+  }
 
-  fmt.Printf("%s /publish - topic %s\n", r.Method, topic)
+  var jsonMap map[string]interface{}
+  err = json.Unmarshal([]byte(body), &jsonMap)
+  if err != nil {
+    fmt.Printf("Failed to convert %s to JSON\n", body)
+    return
+  }
+
+  fmt.Printf("%s /publish - topic %s - json: %s\n", r.Method, topic, jsonMap)
 
   // write to all the conns in the topic queues
   // if there's a failure, remove the cxn
