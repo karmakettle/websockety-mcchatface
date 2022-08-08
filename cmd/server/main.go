@@ -8,7 +8,11 @@ import (
   "io/ioutil"
   "net/http"
   "os"
+  "sync"
 )
+
+// avoid read / write conflict from publish / subscribe endpoints
+var topicsAndClients sync.Map
 
 /*
   Requires POST, topic
@@ -29,8 +33,6 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  fmt.Printf("%s /subscribe - topic %s\n", r.Method, topic)
-
   //  maybe choose a reasonable buffer size
   //  ReadBufferSize:  1024,
   //  WriteBufferSize: 1024,
@@ -41,7 +43,21 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  fmt.Println("websocket successfully created woo!", c.LocalAddr())
+  // sync.Map returns type 'any'
+  clients, ok := topicsAndClients.Load(topic)
+  var clientsSlice []*websocket.Conn
+  if ok {
+    // type conversion to slice to enable dynamic array
+    clientsSlice = clients.([]*websocket.Conn)
+  }
+
+  clientsSlice = append(clientsSlice, c)
+  topicsAndClients.Store(topic, clientsSlice)
+
+  fmt.Printf("Currently serving %d connections\n", len(clientsSlice))
+
+  // TODO: send as response
+  fmt.Printf("Successfully subscribed to topic %s\n", topic)
 }
 
 /*
