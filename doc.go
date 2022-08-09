@@ -23,3 +23,16 @@
 //       Topic to receive incoming messages from (required).
 //     -port
 //       Port the server is running on (optional, defaults to 8081).
+//
+// package socketyutils // import "github.com/karmakettle/websockety-mcchatface/socketyutils"
+//
+// Package socketyutils provides validation, parsing, and logging utilties for the
+// websockety clients, server, and tests.
+//
+// func Dump(data interface{}) string
+// func GetValidTopic(w http.ResponseWriter, r *http.Request) (string, bool)
+// func IsValidContentType(w http.ResponseWriter, r *http.Request, contentType string) bool
+// func IsValidRequestMethod(w http.ResponseWriter, r *http.Request) bool
+// func ParseJsonFromRequest(w http.ResponseWriter, r *http.Request) (map[string]interface{}, bool)
+// func ReadJson(c *websocket.Conn) (interface{}, bool)
+//

@@ -1,3 +1,4 @@
+// Package socketyutils provides validation, parsing, and logging utilties for the websockety clients, server, and tests.
 package socketyutils
 
 import (
@@ -7,7 +8,6 @@ import (
 	"log"
 	"net/http"
 )
-
 
 func ReadJson(c *websocket.Conn) (interface{}, bool) {
 	var jsonMap interface{}

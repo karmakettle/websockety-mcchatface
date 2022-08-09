@@ -41,6 +41,10 @@ func main() {
 	}
 }
 
+/////////////////////////////////////////////////////////////////////////////
+// HANDLERS
+/////////////////////////////////////////////////////////////////////////////
+
 // Subscribe is an http handler that accepts incoming websocket connections
 // and subscribes them to the topic specified in the `topic` query parameter.
 // This is accomplished by adding the topic, client to the topicsAndClients map.
@@ -112,7 +116,9 @@ func publish(w http.ResponseWriter, r *http.Request) {
 // HELPERS
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO - docs
+// SubscribeClient converts clients subscribed to the given topic into a malleable array and adds the incoming websocket.Conn to the list of subscribed clients for that topic.
+// If the topic doesn't already exist, it's created.
+// The topicsAndClients map is updated with the new topic and/or subscription.
 func subscribeClient(c *websocket.Conn, topic string, clients any, topicFound bool) {
 	var clientsSlice []*websocket.Conn
 	if topicFound {
@@ -124,7 +130,8 @@ func subscribeClient(c *websocket.Conn, topic string, clients any, topicFound bo
 	topicsAndClients.Store(topic, clientsSlice)
 }
 
-// TODO - docs
+// BroadcastMessageAndUpdateClients attempts to write the specified requestJson to the list of clients from topicsAndClients for the given topic.
+// If a broken pipe is detected (happens after two attempts at the time of writing this), the client is removed from the list, and topicsAndClients is updated.
 func broadcastMessageAndUpdateClients(topic string, requestJson map[string]interface{}, clients any) {
 	// sync.Map returns type 'any', convert to slice to enable indexing
 	var clientsSlice []*websocket.Conn

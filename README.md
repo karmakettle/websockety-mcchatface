@@ -16,7 +16,7 @@ go run cmd/server/main.go -port 8081
 Output:
 ```
 $ go run cmd/server/main.go -port 8081
-Starting server on port 8081
+2022/08/09 14:30:00 Starting server on port 808
 ```
 
 #### 2. Connect the clients
@@ -31,8 +31,8 @@ go run cmd/client/main.go -topic my_pipeline -port 8081
 Output:
 ```
 $ go run cmd/client/main.go -topic my_pipeline -port 8081
-Connecting to ws://localhost:8081/subscribe?topic=my_pipeline
-2022/08/09 01:35:50 Successfully subscribed to topic "my_pipeline"
+2022/08/09 14:30:27 Connecting to ws://localhost:8081/subscribe?topic=my_pipeline
+2022/08/09 14:30:27 {"subscription_status":"OK","topic":"my_pipeline"}
 ```
 
 Subscribe more clients to the same topic if desired in separate terminals.
@@ -49,11 +49,13 @@ curl -v -X POST -H 'Content-Type:application/json' \
 Sample output from a connected client's perspective:
 ```
 $ go run cmd/client/main.go -topic my_pipeline -port 8081
-Connecting to ws://localhost:8081/subscribe?topic=my_pipeline
-2022/08/09 01:35:50 Successfully subscribed to topic "my_pipeline"
-2022/08/09 01:45:05 {"test":"phase_1"}
+2022/08/09 14:30:27 Connecting to ws://localhost:8081/subscribe?topic=my_pipeline
+2022/08/09 14:30:27 {"subscription_status":"OK","topic":"my_pipeline"}
+2022/08/09 14:31:30 {"test":"phase_1"}
 ```
 
 ### Run tests
 
-TODO
+```bash
+go test -v cmd/server/*
+```
