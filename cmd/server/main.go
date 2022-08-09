@@ -12,9 +12,9 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"github.com/gorilla/websocket"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -31,7 +31,7 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 	topic := r.URL.Query().Get("topic")
 	if !(len(topic) > 0) {
 		err := "No topic specified, unable to subscribe"
-		fmt.Println(err)
+		log.Println(err)
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
@@ -42,7 +42,7 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 	c, err := u.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Println("Failed to establish connection: ", err)
+		log.Println("Failed to establish connection: ", err)
 		return
 	}
 
@@ -58,10 +58,10 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 	topicsAndClients.Store(topic, clientsSlice)
 
 	// TODO: logging, debug level
-	// fmt.Printf("Topic %s currently serving %d connections\n", topic, len(clientsSlice))
+	// log.Printf("Topic %s currently serving %d connections\n", topic, len(clientsSlice))
 
 	if err = c.WriteJSON(map[string]string{"subscription_status": "OK", "topic": topic}); err != nil {
-		fmt.Println("Subscription confirmation failed, closing connection")
+		log.Println("Subscription confirmation failed, closing connection")
 		c.Close()
 	}
 }
@@ -72,7 +72,7 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 func publish(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		err := r.Method + " not allowed for " + "/publish"
-		fmt.Println(err)
+		log.Println(err)
 		http.Error(w, err, http.StatusMethodNotAllowed)
 		return
 	}
@@ -80,7 +80,7 @@ func publish(w http.ResponseWriter, r *http.Request) {
 	topic := r.URL.Query().Get("topic")
 	if !(len(topic) > 0) {
 		err := "No topic specified, unable to publish"
-		fmt.Println(err)
+		log.Println(err)
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
@@ -88,18 +88,18 @@ func publish(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
 		err := "Invalid content type"
-		fmt.Println(err)
+		log.Println(err)
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		fmt.Println("Failed to read request body")
+		log.Println("Failed to read request body")
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	} else if string(body) == "" {
-		fmt.Println("Empty body, unable to publish")
+		log.Println("Empty body, unable to publish")
 		http.Error(w, "Empty body, unable to publish", http.StatusBadRequest)
 		return
 	}
@@ -107,7 +107,7 @@ func publish(w http.ResponseWriter, r *http.Request) {
 	var jsonMap map[string]interface{}
 	err = json.Unmarshal([]byte(body), &jsonMap)
 	if err != nil {
-		fmt.Printf("Failed to convert \"%s\" to JSON\n", body)
+		log.Printf("Failed to convert \"%s\" to JSON\n", body)
 		http.Error(w, "Invalid JSON: "+string(body), http.StatusBadRequest)
 		return
 	}
@@ -130,7 +130,7 @@ func publish(w http.ResponseWriter, r *http.Request) {
 			clientsCopy = append(clientsCopy, client)
 		} else {
 			// client disconnect detected after two failed write attempts
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}
 
@@ -138,6 +138,8 @@ func publish(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	log.SetOutput(os.Stdout)
+
 	var port string
 	flag.StringVar(&port, "port", "8081", "Optionally provide the server port")
 	flag.Parse()
@@ -146,11 +148,10 @@ func main() {
 	mux.HandleFunc("/publish", publish)
 	mux.HandleFunc("/subscribe", subscribe)
 
-	fmt.Printf("Starting server on port %s\n", port)
+	log.Printf("Starting server on port %s\n", port)
 	err := http.ListenAndServe(":"+port, mux)
 
 	if err != nil {
-		fmt.Printf("Server error: %s\n", err)
-		os.Exit(1)
+		log.Fatal("Server error: %s\n", err)
 	}
 }

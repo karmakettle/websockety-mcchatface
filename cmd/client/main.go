@@ -17,13 +17,15 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"github.com/gorilla/websocket"
+	"log"
 	"net/url"
 	"os"
 )
 
 func main() {
+	log.SetOutput(os.Stdout)
+
 	var topic string
 	flag.StringVar(&topic, "topic", "", "Topic for subscription")
 
@@ -32,18 +34,17 @@ func main() {
 	flag.Parse()
 
 	if topic == "" {
-		fmt.Println("Topic required to set up subscription. Exiting")
+		log.Println("Topic required to set up subscription. Exiting")
 		return
 	}
 
 	u := url.URL{Scheme: "ws", Host: "localhost:" + port, Path: "/subscribe", RawQuery: "topic=" + topic}
-	fmt.Printf("Connecting to %s\n", u.String())
+	log.Printf("Connecting to %s\n", u.String())
 
 	// POST? https://github.com/gorilla/websocket/issues/689
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		fmt.Println("Dial:", err)
-		os.Exit(1)
+		log.Fatal("Dial:", err)
 	}
 	defer c.Close()
 
@@ -52,7 +53,7 @@ func main() {
 		var jsonMap interface{}
 		err := c.ReadJSON(&jsonMap)
 		if err != nil {
-			fmt.Println("JSON error:", err)
+			log.Println("JSON error:", err)
 		}
 
 		dump(jsonMap)
@@ -62,7 +63,7 @@ func main() {
 func dump(data interface{}) {
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		fmt.Println("Error marshalling previously valid JSON, hmm...:", err)
+		log.Println("Error marshalling previously valid JSON, hmm...:", err)
 	}
-	fmt.Println(string(jsonBytes))
+	log.Println(string(jsonBytes))
 }
