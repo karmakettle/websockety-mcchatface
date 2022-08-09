@@ -43,11 +43,10 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  // sync.Map returns type 'any'
   clients, ok := topicsAndClients.Load(topic)
   var clientsSlice []*websocket.Conn
   if ok {
-    // type conversion to slice to enable dynamic array
+    // sync.Map returns type 'any', convert to slice to enable append
     clientsSlice = clients.([]*websocket.Conn)
   }
 
@@ -101,10 +100,28 @@ func publish(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  fmt.Printf("%s /publish - topic %s - json: %s\n", r.Method, topic, jsonMap)
+  clients, ok := topicsAndClients.Load(topic)
+  if !ok {
+    http.Error(w, "Topic \"" + topic + "\" doesn't exist, unable to publish", http.StatusBadRequest)
+    return
+  }
 
-  // write to all the conns in the topic queues
-  // if there's a failure, remove the cxn
+  // sync.Map returns type 'any', convert to slice to enable indexing
+  var clientsSlice []*websocket.Conn
+  clientsSlice = clients.([]*websocket.Conn)
+
+  // publish to all clients subscribed to the topic
+  clientsCopy := clientsSlice[:0]
+  for _, client := range clientsSlice {
+    if err = client.WriteJSON(jsonMap); err == nil {
+      clientsCopy = append(clientsCopy, client)
+    } else {
+      // client disconnect detected after two failed write attempts
+      fmt.Println(err)
+    }
+  }
+
+  topicsAndClients.Store(topic, clientsCopy)
 }
 
 func main() {
