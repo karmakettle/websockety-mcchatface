@@ -1,14 +1,17 @@
 package main
 
 import (
+	"io"
 	"net/http"
 	"github.com/gorilla/websocket"
+	sutils "github.com/karmakettle/websockety-mcchatface/socketyutils"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
 
 var testTopic = "sockety_pipeline"
+var testJson = "{\"a\":\"json\"}"
 
 func TestGetValidTopic(t *testing.T) {
 	w := httptest.NewRecorder()
@@ -82,12 +85,29 @@ func TestSubscribe(t *testing.T) {
 	purl += "/publish?topic=" + testTopic
 	t.Log(purl)
 
+	// assert that both clients receive a published message
+	resp := publishToTest(t, purl, testJson)
+	resp.Body.Close()
+	if cxnOneJson, ok := sutils.ReadJson(cxnOne); !ok {
+		t.Errorf("First client failed to read JSON published to %s\n", testTopic)
+	} else {
+		t.Log("JSON received! " + sutils.Dump(cxnOneJson))
+	}
+
+	if cxnTwoJson, ok := sutils.ReadJson(cxnTwo); !ok {
+		t.Errorf("Second client failed to read JSON published to %s\n", testTopic)
+	} else {
+		t.Log("JSON received! " + sutils.Dump(cxnTwoJson))
+	}
+
 	// closing connection and publishing twice to the topic should remove the dead client
 	cxnOne.Close()
 	t.Log("Publish once!")
-	publishToTest(t, purl)
+	respOne := publishToTest(t, purl, testJson)
+	respOne.Body.Close()
 	t.Log("Publish twice!")
-	publishToTest(t, purl)
+	respTwo := publishToTest(t, purl, testJson)
+	respTwo.Body.Close()
 
 	// assert one client left standing
 	clientsSlice = getClients(t)
@@ -110,8 +130,8 @@ func getClients(t *testing.T) []*websocket.Conn {
 	return clientsSlice
 }
 
-func publishToTest(t *testing.T, url string) {
-    req := httptest.NewRequest("POST", url, strings.NewReader("{\"a\":\"json\"}"))
+func publishToTest(t *testing.T, url string, jsonString string) *http.Response {
+    req := httptest.NewRequest("POST", url, strings.NewReader(jsonString))
     req.Header.Set("Content-Type", "application/json")
     // need to clear this bc of reasons, hat tip to https://stackoverflow.com/a/19607204
 	req.RequestURI = ""
@@ -120,12 +140,59 @@ func publishToTest(t *testing.T, url string) {
 	if err != nil {
 		t.Fatalf("Error in publishToTest: %v", err)
 	}
-	resp.Body.Close()
+
+	return resp
 }
 
 func TestPublish(t *testing.T) {
+	// set up test publish handler (http endpoint)
+	publishHandler := http.HandlerFunc(publish)
+	publishServer := httptest.NewServer(publishHandler)
+	defer publishServer.Close()
+
+	purl := publishServer.URL
+	purl += "/publish"
+	t.Log(purl)
+
 	// error response for no topic in request
-	// error response on invalid request data
+	noTopicResp := publishToTest(t, purl, testJson)
+	noTopicRespBody, err := io.ReadAll(noTopicResp.Body)
+	if err != nil {
+		t.Error(err)
+	} else if !strings.Contains(string(noTopicRespBody), "No topic specified") {
+		t.Error("Request to publish with no topic should have failed")
+	}
+	noTopicResp.Body.Close()
+
+	// error response on empty request data
+	purl += "?topic=" + testTopic
+	emptyDataResp := publishToTest(t, purl, "")
+	emptyDataRespBody, err := io.ReadAll(emptyDataResp.Body)
+	if err != nil {
+		t.Error(err)
+	} else if !strings.Contains(string(emptyDataRespBody), "Empty body") {
+		t.Error("Request to publish with no data should have failed")
+	}
+	emptyDataResp.Body.Close()
+
+	// error response on invalid request json
+	invalidJsonResp := publishToTest(t, purl, "nope")
+	invalidJsonRespBody, err := io.ReadAll(invalidJsonResp.Body)
+	if err != nil {
+		t.Error(err)
+	} else if !strings.Contains(string(invalidJsonRespBody), "Invalid JSON") {
+		t.Error("Request to publish with invalid JSON should have failed")
+	}
+	invalidJsonResp.Body.Close()
+
 	// error response on topic that hasn't been created
-	// message published to all clients subscribed to a valid topic
+	purl = strings.Replace(purl, testTopic, "newTopic", 1)
+	invalidTopicResp := publishToTest(t, purl, testJson)
+	invalidTopicRespBody, err := io.ReadAll(invalidTopicResp.Body)
+	if err != nil {
+		t.Error(err)
+	} else if !strings.Contains(string(invalidTopicRespBody), "doesn't exist") {
+		t.Error("Request to publish to nonexistent topic should have failed")
+	}
+	invalidTopicResp.Body.Close()
 }
