@@ -10,10 +10,9 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"github.com/gorilla/websocket"
-	"io"
+	sutils "github.com/karmakettle/websockety-mcchatface/socketyutils"
 	"log"
 	"net/http"
 	"os"
@@ -48,7 +47,7 @@ func main() {
 // Clients are only subscribed to one topic at a time.
 func subscribe(w http.ResponseWriter, r *http.Request) {
 	var topic string
-	if reqTopic, isValid := getValidTopic(w, r); isValid {
+	if reqTopic, isValid := sutils.GetValidTopic(w, r); isValid {
 		topic = reqTopic
 	} else { return }
 
@@ -76,17 +75,17 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 // The topic must exist in the topicsAndClients map.
 // The publisher itself doesn't need to be subscribed to the topic.
 func publish(w http.ResponseWriter, r *http.Request) {
-	if isValid := isValidRequestMethod(w, r); !isValid { return }
+	if isValid := sutils.IsValidRequestMethod(w, r); !isValid { return }
 
 	var topic string
-	if reqTopic, isValid := getValidTopic(w, r); isValid {
+	if reqTopic, isValid := sutils.GetValidTopic(w, r); isValid {
 		topic = reqTopic
 	} else { return }
 
 	contentType := r.Header.Get("Content-Type")
-	if isValid := isValidContentType(w, r, contentType); !isValid { return }
+	if isValid := sutils.IsValidContentType(w, r, contentType); !isValid { return }
 
-	requestJson, ok := parseJsonFromRequest(w, r); if !ok { return }
+	requestJson, ok := sutils.ParseJsonFromRequest(w, r); if !ok { return }
 
 	// verify topic exists, get subscribed clients
 	clients, topicFound := topicsAndClients.Load(topic)
@@ -132,62 +131,4 @@ func broadcastMessageAndUpdateClients(topic string, requestJson map[string]inter
 	}
 
 	topicsAndClients.Store(topic, clientsCopy)
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// UTILS
-/////////////////////////////////////////////////////////////////////////////
-
-func isValidRequestMethod(w http.ResponseWriter, r *http.Request) bool {
-	if r.Method != http.MethodPost {
-		err := r.Method + " not allowed for " + "/publish"
-		log.Println(err)
-		http.Error(w, err, http.StatusMethodNotAllowed)
-		return false
-	}
-	return true
-}
-
-func getValidTopic(w http.ResponseWriter, r *http.Request) (string, bool) {
-	topic := r.URL.Query().Get("topic")
-	if !(len(topic) > 0) {
-		err := "No topic specified"
-		log.Println(err)
-		http.Error(w, err, http.StatusBadRequest)
-		return "", false
-	}
-	return topic, true
-}
-
-func isValidContentType(w http.ResponseWriter, r *http.Request, contentType string) bool {
-	if contentType != "application/json" {
-		err := "Invalid content type"
-		log.Println(err)
-		http.Error(w, err, http.StatusBadRequest)
-		return false
-	}
-	return true
-}
-
-func parseJsonFromRequest(w http.ResponseWriter, r *http.Request) (map[string]interface{}, bool) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Println("Failed to read request body")
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		return nil, false
-	} else if string(body) == "" {
-		log.Println("Empty body, unable to publish")
-		http.Error(w, "Empty body, unable to publish", http.StatusBadRequest)
-		return nil, false
-	}
-
-	var jsonMap map[string]interface{}
-	err = json.Unmarshal([]byte(body), &jsonMap)
-	if err != nil {
-		log.Printf("Failed to convert %q to JSON\n", body)
-		http.Error(w, "Invalid JSON: "+string(body), http.StatusBadRequest)
-		return nil, false
-	}
-
-	return jsonMap, true
 }

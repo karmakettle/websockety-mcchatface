@@ -18,14 +18,14 @@ func TestGetValidTopic(t *testing.T) {
 	req := httptest.NewRequest("POST", "http://localhost:8081/subscribe", nil)
 
 	// missing topic should be marked as invalid
-	_, isValid := getValidTopic(w, req)
+	_, isValid := sutils.GetValidTopic(w, req)
 	if isValid {
 		t.Error("Validation should have failed for request with a url without a topic")
 	}
 
 	testTopic := "sockety_pipeline"
 	req = httptest.NewRequest("POST", "http://localhost:8081/subscribe?topic=" + testTopic, nil)
-	topic, isValid := getValidTopic(w, req)
+	topic, isValid := sutils.GetValidTopic(w, req)
 	if !isValid {
 		t.Error("Failed to retrieve valid topic from request url")
 	} else if topic != testTopic {
