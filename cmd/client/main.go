@@ -15,10 +15,10 @@
 package main
 
 import (
+  "encoding/json"
   "flag"
   "fmt"
   "github.com/gorilla/websocket"
-  "log"
   "net/url"
   "os"
 )
@@ -47,13 +47,22 @@ func main() {
   }
   defer c.Close()
 
-  // receive messages
+  // receive JSON messages
   for {
-    _, message, err := c.ReadMessage()
+    var jsonMap interface{}
+    err := c.ReadJSON(&jsonMap)
     if err != nil {
-      fmt.Println("Read error:", err)
-      return
+      fmt.Println("JSON error:", err)
     }
-    log.Printf("%s", message)
+
+    dump(jsonMap)
   }
+}
+
+func dump(data interface{}){
+  jsonBytes, err:=json.Marshal(data)
+  if err != nil {
+    fmt.Println("Error marshalling previously valid JSON, hmm...:", err)
+  }
+  fmt.Println(string(jsonBytes))
 }

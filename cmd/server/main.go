@@ -60,8 +60,10 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
   // TODO: logging, debug level
   // fmt.Printf("Topic %s currently serving %d connections\n", topic, len(clientsSlice))
 
-  // might be nice to have server-side logging for this too with some kind of session id
-  c.WriteMessage(websocket.TextMessage, []byte("Successfully subscribed to topic \"" + topic + "\""))
+  if err = c.WriteJSON(map[string]string{"subscription_status":"OK", "topic":topic}); err != nil {
+    fmt.Println("Subscription confirmation failed, closing connection")
+    c.Close()
+  }
 }
 
 // Publish is an http handler that sends JSON data in the incoming request to all connected clients for the topic specified in the `topic` query parameter.
@@ -83,14 +85,22 @@ func publish(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  // TODO: check content header to verify application/json?
+  contentType := r.Header.Get("Content-Type")
+  if contentType != "application/json" {
+    err := "Invalid content type"
+    fmt.Println(err)
+    http.Error(w, err, http.StatusBadRequest)
+    return
+  }
 
   body, err := ioutil.ReadAll(r.Body)
   if err != nil {
     fmt.Println("Failed to read request body")
+    http.Error(w, "Failed to read request body", http.StatusBadRequest)
     return
   } else if string(body) == "" {
     fmt.Println("Empty body, unable to publish")
+    http.Error(w, "Empty body, unable to publish", http.StatusBadRequest)
     return
   }
 
@@ -98,6 +108,7 @@ func publish(w http.ResponseWriter, r *http.Request) {
   err = json.Unmarshal([]byte(body), &jsonMap)
   if err != nil {
     fmt.Printf("Failed to convert \"%s\" to JSON\n", body)
+    http.Error(w, "Invalid JSON: " + string(body), http.StatusBadRequest)
     return
   }
 
