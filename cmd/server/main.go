@@ -49,7 +49,9 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 	var topic string
 	if reqTopic, isValid := sutils.GetValidTopic(w, r); isValid {
 		topic = reqTopic
-	} else { return }
+	} else {
+		return
+	}
 
 	u := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -75,17 +77,26 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 // The topic must exist in the topicsAndClients map.
 // The publisher itself doesn't need to be subscribed to the topic.
 func publish(w http.ResponseWriter, r *http.Request) {
-	if isValid := sutils.IsValidRequestMethod(w, r); !isValid { return }
+	if isValid := sutils.IsValidRequestMethod(w, r); !isValid {
+		return
+	}
 
 	var topic string
 	if reqTopic, isValid := sutils.GetValidTopic(w, r); isValid {
 		topic = reqTopic
-	} else { return }
+	} else {
+		return
+	}
 
 	contentType := r.Header.Get("Content-Type")
-	if isValid := sutils.IsValidContentType(w, r, contentType); !isValid { return }
+	if isValid := sutils.IsValidContentType(w, r, contentType); !isValid {
+		return
+	}
 
-	requestJson, ok := sutils.ParseJsonFromRequest(w, r); if !ok { return }
+	requestJson, ok := sutils.ParseJsonFromRequest(w, r)
+	if !ok {
+		return
+	}
 
 	// verify topic exists, get subscribed clients
 	clients, topicFound := topicsAndClients.Load(topic)

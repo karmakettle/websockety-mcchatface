@@ -1,10 +1,10 @@
 package main
 
 import (
-	"io"
-	"net/http"
 	"github.com/gorilla/websocket"
 	sutils "github.com/karmakettle/websockety-mcchatface/socketyutils"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -24,7 +24,7 @@ func TestGetValidTopic(t *testing.T) {
 	}
 
 	testTopic := "sockety_pipeline"
-	req = httptest.NewRequest("POST", "http://localhost:8081/subscribe?topic=" + testTopic, nil)
+	req = httptest.NewRequest("POST", "http://localhost:8081/subscribe?topic="+testTopic, nil)
 	topic, isValid := sutils.GetValidTopic(w, req)
 	if !isValid {
 		t.Error("Failed to retrieve valid topic from request url")
@@ -59,7 +59,7 @@ func TestSubscribe(t *testing.T) {
 
 	clientsSlice := getClients(t)
 	// assert one client subscribed
-	if (len(clientsSlice) != 1) {
+	if len(clientsSlice) != 1 {
 		t.Errorf("Found %d client(s) subscribed to %s but expected 1", len(clientsSlice), testTopic)
 	}
 
@@ -72,7 +72,7 @@ func TestSubscribe(t *testing.T) {
 
 	clientsSlice = getClients(t)
 	// assert two clients subscribed
-	if (len(clientsSlice) != 2) {
+	if len(clientsSlice) != 2 {
 		t.Errorf("Found %d client(s) subscribed to %s but expected 2", len(clientsSlice), testTopic)
 	}
 
@@ -111,7 +111,7 @@ func TestSubscribe(t *testing.T) {
 
 	// assert one client left standing
 	clientsSlice = getClients(t)
-	if (len(clientsSlice) != 1) {
+	if len(clientsSlice) != 1 {
 		t.Errorf("Found %d client(s) subscribed to %s but expected 1", len(clientsSlice), testTopic)
 	}
 
@@ -142,9 +142,9 @@ func getClients(t *testing.T) []*websocket.Conn {
 }
 
 func publishToTest(t *testing.T, url string, jsonString string) *http.Response {
-    req := httptest.NewRequest("POST", url, strings.NewReader(jsonString))
-    req.Header.Set("Content-Type", "application/json")
-    // need to clear this bc of reasons, hat tip to https://stackoverflow.com/a/19607204
+	req := httptest.NewRequest("POST", url, strings.NewReader(jsonString))
+	req.Header.Set("Content-Type", "application/json")
+	// need to clear this bc of reasons, hat tip to https://stackoverflow.com/a/19607204
 	req.RequestURI = ""
 
 	resp, err := http.DefaultClient.Do(req)
