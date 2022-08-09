@@ -38,7 +38,7 @@ func main() {
 	err := http.ListenAndServe(":"+port, mux)
 
 	if err != nil {
-		log.Fatal("Server error: %s\n", err)
+		log.Fatalf("Server error: %s\n", err)
 	}
 }
 
@@ -47,8 +47,10 @@ func main() {
 // This is accomplished by adding the topic, client to the topicsAndClients map.
 // Clients are only subscribed to one topic at a time.
 func subscribe(w http.ResponseWriter, r *http.Request) {
-	topic := r.URL.Query().Get("topic")
-	if isValid := isValidTopic(w, r, topic); !isValid { return }
+	var topic string
+	if reqTopic, isValid := getValidTopic(w, r); isValid {
+		topic = reqTopic
+	} else { return }
 
 	u := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -76,8 +78,10 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 func publish(w http.ResponseWriter, r *http.Request) {
 	if isValid := isValidRequestMethod(w, r); !isValid { return }
 
-	topic := r.URL.Query().Get("topic")
-	if isValid := isValidTopic(w, r, topic); !isValid { return }
+	var topic string
+	if reqTopic, isValid := getValidTopic(w, r); isValid {
+		topic = reqTopic
+	} else { return }
 
 	contentType := r.Header.Get("Content-Type")
 	if isValid := isValidContentType(w, r, contentType); !isValid { return }
@@ -144,14 +148,15 @@ func isValidRequestMethod(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-func isValidTopic(w http.ResponseWriter, r *http.Request, topic string) bool {
+func getValidTopic(w http.ResponseWriter, r *http.Request) (string, bool) {
+	topic := r.URL.Query().Get("topic")
 	if !(len(topic) > 0) {
 		err := "No topic specified"
 		log.Println(err)
 		http.Error(w, err, http.StatusBadRequest)
-		return false
+		return "", false
 	}
-	return true
+	return topic, true
 }
 
 func isValidContentType(w http.ResponseWriter, r *http.Request, contentType string) bool {
@@ -179,7 +184,7 @@ func parseJsonFromRequest(w http.ResponseWriter, r *http.Request) (map[string]in
 	var jsonMap map[string]interface{}
 	err = json.Unmarshal([]byte(body), &jsonMap)
 	if err != nil {
-		log.Printf("Failed to convert \"%s\" to JSON\n", body)
+		log.Printf("Failed to convert %q to JSON\n", body)
 		http.Error(w, "Invalid JSON: "+string(body), http.StatusBadRequest)
 		return nil, false
 	}
