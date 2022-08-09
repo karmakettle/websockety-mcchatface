@@ -15,9 +15,9 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"github.com/gorilla/websocket"
+	sutils "github.com/karmakettle/websockety-mcchatface/socketyutils"
 	"log"
 	"net/url"
 	"os"
@@ -50,26 +50,8 @@ func main() {
 
 	// receive JSON messages
 	for {
-		if jsonMap, ok := readJson(c); ok {
-			dump(jsonMap)
+		if jsonMap, ok := sutils.ReadJson(c); ok {
+			log.Println(sutils.Dump(jsonMap))
 		}
 	}
-}
-
-func readJson(c *websocket.Conn) (interface{}, bool) {
-	var jsonMap interface{}
-	err := c.ReadJSON(&jsonMap)
-	if err != nil {
-		log.Println("JSON error:", err)
-		return nil, false
-	}
-	return jsonMap, true
-}
-
-func dump(data interface{}) {
-	jsonBytes, err := json.Marshal(data)
-	if err != nil {
-		log.Println("Error marshalling previously valid JSON, hmm...:", err)
-	}
-	log.Println(string(jsonBytes))
 }
