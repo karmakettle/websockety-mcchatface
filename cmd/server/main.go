@@ -1,3 +1,12 @@
+// Package server/main implements a server that handles incoming websocket connections and subscribes them to a given topic.
+// The subscribed clients receive messages from third parties that publish to the topic.
+// See client/main for the client implementation.
+//
+// Usage:
+//
+//   go run cmd/server/main.go [-port]
+//
+// The port flag is optional and defaults to 8081.
 package main
 
 import (
@@ -11,20 +20,14 @@ import (
   "sync"
 )
 
-// avoid read / write conflict from publish / subscribe endpoints
+// Thread-safe map of topics and an array of subscribed clients.
 var topicsAndClients sync.Map
 
-/*
-  Requires POST, topic
-*/
+// Subscribe is an http handler that accepts incoming websocket connections
+// and subscribes them to the topic specified in the `topic` query parameter.
+// This is accomplished by adding the topic, client to the topicsAndClients map.
+// Clients are only subscribed to one topic at a time.
 func subscribe(w http.ResponseWriter, r *http.Request) {
-  //   if r.Method != http.MethodPost {
-  //   err := r.Method + " not allowed for " + "/subscribe"
-  //   fmt.Println(err)
-  //   http.Error(w, err,  http.StatusMethodNotAllowed)
-  //   return
-  // }
-
   topic := r.URL.Query().Get("topic")
   if !(len(topic) > 0) {
     err := "No topic specified, unable to subscribe"
@@ -33,19 +36,20 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  //  maybe choose a reasonable buffer size
-  //  ReadBufferSize:  1024,
-  //  WriteBufferSize: 1024,
-  u := websocket.Upgrader{}
+  u := websocket.Upgrader{
+    ReadBufferSize:  1024,
+    WriteBufferSize: 1024,
+  }
   c, err := u.Upgrade(w, r, nil)
   if err != nil {
-    fmt.Println("Unable to establish connection: ", err)
+    fmt.Println("Failed to establish connection: ", err)
     return
   }
 
-  clients, ok := topicsAndClients.Load(topic)
+  // get existing clients list for the topic or create a new one
+  clients, topicFound := topicsAndClients.Load(topic)
   var clientsSlice []*websocket.Conn
-  if ok {
+  if topicFound {
     // sync.Map returns type 'any', convert to slice to enable append
     clientsSlice = clients.([]*websocket.Conn)
   }
@@ -53,21 +57,16 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
   clientsSlice = append(clientsSlice, c)
   topicsAndClients.Store(topic, clientsSlice)
 
-  fmt.Printf("Currently serving %d connections\n", len(clientsSlice))
+  // TODO: logging, debug level
+  // fmt.Printf("Topic %s currently serving %d connections\n", topic, len(clientsSlice))
 
-  // TODO: send as response
-  fmt.Printf("Successfully subscribed to topic %s\n", topic)
+  // might be nice to have server-side logging for this too with some kind of session id
+  c.WriteMessage(websocket.TextMessage, []byte("Successfully subscribed to topic \"" + topic + "\""))
 }
 
-/*
-  Requires POST, topic, JSON body
-
-  No authentication, no need to be subscribed to a topic
-  before publishing. any entity can post any message to any
-  existing topic
-
-  Clients are only subscribed to one topic at a time
-*/
+// Publish is an http handler that sends JSON data in the incoming request to all connected clients for the topic specified in the `topic` query parameter.
+// The topic must exist in the topicsAndClients map.
+// The publisher itself doesn't need to be subscribed to the topic.
 func publish(w http.ResponseWriter, r *http.Request) {
   if r.Method != http.MethodPost {
     err := r.Method + " not allowed for " + "/publish"
@@ -84,6 +83,8 @@ func publish(w http.ResponseWriter, r *http.Request) {
     return
   }
 
+  // TODO: check content header to verify application/json?
+
   body, err := ioutil.ReadAll(r.Body)
   if err != nil {
     fmt.Println("Failed to read request body")
@@ -96,12 +97,13 @@ func publish(w http.ResponseWriter, r *http.Request) {
   var jsonMap map[string]interface{}
   err = json.Unmarshal([]byte(body), &jsonMap)
   if err != nil {
-    fmt.Printf("Failed to convert %s to JSON\n", body)
+    fmt.Printf("Failed to convert \"%s\" to JSON\n", body)
     return
   }
 
-  clients, ok := topicsAndClients.Load(topic)
-  if !ok {
+  // verify topic exists, get subscribed clients
+  clients, topicFound := topicsAndClients.Load(topic)
+  if !topicFound {
     http.Error(w, "Topic \"" + topic + "\" doesn't exist, unable to publish", http.StatusBadRequest)
     return
   }
@@ -141,4 +143,3 @@ func main() {
     os.Exit(1)
   }
 }
-
