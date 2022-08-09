@@ -13,7 +13,7 @@ import (
 	"encoding/json"
 	"flag"
 	"github.com/gorilla/websocket"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -170,7 +170,7 @@ func isValidContentType(w http.ResponseWriter, r *http.Request, contentType stri
 }
 
 func parseJsonFromRequest(w http.ResponseWriter, r *http.Request) (map[string]interface{}, bool) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Println("Failed to read request body")
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
