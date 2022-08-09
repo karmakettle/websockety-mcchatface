@@ -114,6 +114,17 @@ func TestSubscribe(t *testing.T) {
 	if (len(clientsSlice) != 1) {
 		t.Errorf("Found %d client(s) subscribed to %s but expected 1", len(clientsSlice), testTopic)
 	}
+
+	// verify client doesn't exit on reading invalid JSON
+	invalidJsonResp := publishToTest(t, purl, "nope")
+	invalidJsonResp.Body.Close()
+
+	// JSON error
+	if _, ok := sutils.ReadJson(cxnTwo); ok {
+		t.Log("Second client detected the invalid JSON, and the connection remained open")
+	} else {
+		t.Error("Second client failed to detect invalid JSON")
+	}
 }
 
 func getClients(t *testing.T) []*websocket.Conn {
