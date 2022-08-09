@@ -23,6 +23,25 @@ import (
 // Thread-safe map of topics and an array of subscribed clients.
 var topicsAndClients sync.Map
 
+func main() {
+	log.SetOutput(os.Stdout)
+
+	var port string
+	flag.StringVar(&port, "port", "8081", "Optionally provide the server port")
+	flag.Parse()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/subscribe", subscribe)
+	mux.HandleFunc("/publish", publish)
+
+	log.Printf("Starting server on port %s\n", port)
+	err := http.ListenAndServe(":"+port, mux)
+
+	if err != nil {
+		log.Fatal("Server error: %s\n", err)
+	}
+}
+
 // Subscribe is an http handler that accepts incoming websocket connections
 // and subscribes them to the topic specified in the `topic` query parameter.
 // This is accomplished by adding the topic, client to the topicsAndClients map.
@@ -75,6 +94,46 @@ func publish(w http.ResponseWriter, r *http.Request) {
 	broadcastMessageAndUpdateClients(topic, requestJson, clients)
 }
 
+/////////////////////////////////////////////////////////////////////////////
+// HELPERS
+/////////////////////////////////////////////////////////////////////////////
+
+// TODO - docs
+func subscribeClient(c *websocket.Conn, topic string, clients any, topicFound bool) {
+	var clientsSlice []*websocket.Conn
+	if topicFound {
+		// sync.Map returns type 'any', convert to slice to enable append
+		clientsSlice = clients.([]*websocket.Conn)
+	}
+
+	clientsSlice = append(clientsSlice, c)
+	topicsAndClients.Store(topic, clientsSlice)
+}
+
+// TODO - docs
+func broadcastMessageAndUpdateClients(topic string, requestJson map[string]interface{}, clients any) {
+	// sync.Map returns type 'any', convert to slice to enable indexing
+	var clientsSlice []*websocket.Conn
+	clientsSlice = clients.([]*websocket.Conn)
+
+	// publish to all clients subscribed to the topic
+	clientsCopy := clientsSlice[:0]
+	for _, client := range clientsSlice {
+		if err := client.WriteJSON(requestJson); err == nil {
+			clientsCopy = append(clientsCopy, client)
+		} else {
+			// client disconnect detected after two failed write attempts
+			log.Println(err)
+		}
+	}
+
+	topicsAndClients.Store(topic, clientsCopy)
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// UTILS
+/////////////////////////////////////////////////////////////////////////////
+
 func isValidRequestMethod(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		err := r.Method + " not allowed for " + "/publish"
@@ -126,55 +185,4 @@ func parseJsonFromRequest(w http.ResponseWriter, r *http.Request) (map[string]in
 	}
 
 	return jsonMap, true
-}
-
-// TODO - docs
-func subscribeClient(c *websocket.Conn, topic string, clients any, topicFound bool) {
-	var clientsSlice []*websocket.Conn
-	if topicFound {
-		// sync.Map returns type 'any', convert to slice to enable append
-		clientsSlice = clients.([]*websocket.Conn)
-	}
-
-	clientsSlice = append(clientsSlice, c)
-	topicsAndClients.Store(topic, clientsSlice)
-}
-
-// TODO - docs
-func broadcastMessageAndUpdateClients(topic string, requestJson map[string]interface{}, clients any) {
-	// sync.Map returns type 'any', convert to slice to enable indexing
-	var clientsSlice []*websocket.Conn
-	clientsSlice = clients.([]*websocket.Conn)
-
-	// publish to all clients subscribed to the topic
-	clientsCopy := clientsSlice[:0]
-	for _, client := range clientsSlice {
-		if err := client.WriteJSON(requestJson); err == nil {
-			clientsCopy = append(clientsCopy, client)
-		} else {
-			// client disconnect detected after two failed write attempts
-			log.Println(err)
-		}
-	}
-
-	topicsAndClients.Store(topic, clientsCopy)
-}
-
-func main() {
-	log.SetOutput(os.Stdout)
-
-	var port string
-	flag.StringVar(&port, "port", "8081", "Optionally provide the server port")
-	flag.Parse()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/publish", publish)
-	mux.HandleFunc("/subscribe", subscribe)
-
-	log.Printf("Starting server on port %s\n", port)
-	err := http.ListenAndServe(":"+port, mux)
-
-	if err != nil {
-		log.Fatal("Server error: %s\n", err)
-	}
 }
