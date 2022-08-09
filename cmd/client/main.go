@@ -50,14 +50,20 @@ func main() {
 
 	// receive JSON messages
 	for {
-		var jsonMap interface{}
-		err := c.ReadJSON(&jsonMap)
-		if err != nil {
-			log.Println("JSON error:", err)
+		if jsonMap, ok := readJson(c); ok {
+			dump(jsonMap)
 		}
-
-		dump(jsonMap)
 	}
+}
+
+func readJson(c *websocket.Conn) (interface{}, bool) {
+	var jsonMap interface{}
+	err := c.ReadJSON(&jsonMap)
+	if err != nil {
+		log.Println("JSON error:", err)
+		return nil, false
+	}
+	return jsonMap, true
 }
 
 func dump(data interface{}) {

@@ -29,12 +29,7 @@ var topicsAndClients sync.Map
 // Clients are only subscribed to one topic at a time.
 func subscribe(w http.ResponseWriter, r *http.Request) {
 	topic := r.URL.Query().Get("topic")
-	if !(len(topic) > 0) {
-		err := "No topic specified, unable to subscribe"
-		log.Println(err)
-		http.Error(w, err, http.StatusBadRequest)
-		return
-	}
+	if isValid := isValidTopic(w, r, topic); !isValid { return }
 
 	u := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -48,17 +43,7 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 
 	// get existing clients list for the topic or create a new one
 	clients, topicFound := topicsAndClients.Load(topic)
-	var clientsSlice []*websocket.Conn
-	if topicFound {
-		// sync.Map returns type 'any', convert to slice to enable append
-		clientsSlice = clients.([]*websocket.Conn)
-	}
-
-	clientsSlice = append(clientsSlice, c)
-	topicsAndClients.Store(topic, clientsSlice)
-
-	// TODO: logging, debug level
-	// log.Printf("Topic %s currently serving %d connections\n", topic, len(clientsSlice))
+	subscribeClient(c, topic, clients, topicFound)
 
 	if err = c.WriteJSON(map[string]string{"subscription_status": "OK", "topic": topic}); err != nil {
 		log.Println("Subscription confirmation failed, closing connection")
@@ -70,47 +55,15 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 // The topic must exist in the topicsAndClients map.
 // The publisher itself doesn't need to be subscribed to the topic.
 func publish(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		err := r.Method + " not allowed for " + "/publish"
-		log.Println(err)
-		http.Error(w, err, http.StatusMethodNotAllowed)
-		return
-	}
+	if isValid := isValidRequestMethod(w, r); !isValid { return }
 
 	topic := r.URL.Query().Get("topic")
-	if !(len(topic) > 0) {
-		err := "No topic specified, unable to publish"
-		log.Println(err)
-		http.Error(w, err, http.StatusBadRequest)
-		return
-	}
+	if isValid := isValidTopic(w, r, topic); !isValid { return }
 
 	contentType := r.Header.Get("Content-Type")
-	if contentType != "application/json" {
-		err := "Invalid content type"
-		log.Println(err)
-		http.Error(w, err, http.StatusBadRequest)
-		return
-	}
+	if isValid := isValidContentType(w, r, contentType); !isValid { return }
 
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Println("Failed to read request body")
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		return
-	} else if string(body) == "" {
-		log.Println("Empty body, unable to publish")
-		http.Error(w, "Empty body, unable to publish", http.StatusBadRequest)
-		return
-	}
-
-	var jsonMap map[string]interface{}
-	err = json.Unmarshal([]byte(body), &jsonMap)
-	if err != nil {
-		log.Printf("Failed to convert \"%s\" to JSON\n", body)
-		http.Error(w, "Invalid JSON: "+string(body), http.StatusBadRequest)
-		return
-	}
+	requestJson, ok := parseJsonFromRequest(w, r); if !ok { return }
 
 	// verify topic exists, get subscribed clients
 	clients, topicFound := topicsAndClients.Load(topic)
@@ -119,6 +72,76 @@ func publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	broadcastMessageAndUpdateClients(topic, requestJson, clients)
+}
+
+func isValidRequestMethod(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		err := r.Method + " not allowed for " + "/publish"
+		log.Println(err)
+		http.Error(w, err, http.StatusMethodNotAllowed)
+		return false
+	}
+	return true
+}
+
+func isValidTopic(w http.ResponseWriter, r *http.Request, topic string) bool {
+	if !(len(topic) > 0) {
+		err := "No topic specified"
+		log.Println(err)
+		http.Error(w, err, http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func isValidContentType(w http.ResponseWriter, r *http.Request, contentType string) bool {
+	if contentType != "application/json" {
+		err := "Invalid content type"
+		log.Println(err)
+		http.Error(w, err, http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func parseJsonFromRequest(w http.ResponseWriter, r *http.Request) (map[string]interface{}, bool) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Println("Failed to read request body")
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return nil, false
+	} else if string(body) == "" {
+		log.Println("Empty body, unable to publish")
+		http.Error(w, "Empty body, unable to publish", http.StatusBadRequest)
+		return nil, false
+	}
+
+	var jsonMap map[string]interface{}
+	err = json.Unmarshal([]byte(body), &jsonMap)
+	if err != nil {
+		log.Printf("Failed to convert \"%s\" to JSON\n", body)
+		http.Error(w, "Invalid JSON: "+string(body), http.StatusBadRequest)
+		return nil, false
+	}
+
+	return jsonMap, true
+}
+
+// TODO - docs
+func subscribeClient(c *websocket.Conn, topic string, clients any, topicFound bool) {
+	var clientsSlice []*websocket.Conn
+	if topicFound {
+		// sync.Map returns type 'any', convert to slice to enable append
+		clientsSlice = clients.([]*websocket.Conn)
+	}
+
+	clientsSlice = append(clientsSlice, c)
+	topicsAndClients.Store(topic, clientsSlice)
+}
+
+// TODO - docs
+func broadcastMessageAndUpdateClients(topic string, requestJson map[string]interface{}, clients any) {
 	// sync.Map returns type 'any', convert to slice to enable indexing
 	var clientsSlice []*websocket.Conn
 	clientsSlice = clients.([]*websocket.Conn)
@@ -126,7 +149,7 @@ func publish(w http.ResponseWriter, r *http.Request) {
 	// publish to all clients subscribed to the topic
 	clientsCopy := clientsSlice[:0]
 	for _, client := range clientsSlice {
-		if err = client.WriteJSON(jsonMap); err == nil {
+		if err := client.WriteJSON(requestJson); err == nil {
 			clientsCopy = append(clientsCopy, client)
 		} else {
 			// client disconnect detected after two failed write attempts
