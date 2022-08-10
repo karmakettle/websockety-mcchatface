@@ -1,6 +1,6 @@
-// Package server/main implements a server that handles incoming websocket connections and subscribes them to a given topic.
-// The subscribed clients receive messages from third parties that publish to the topic.
-// See client/main for the client implementation.
+// Package server/main implements a server that handles incoming websocket connections
+// and subscribes them to a given topic. The subscribed clients receive messages from
+// third parties that publish to the topic. See client/main for the client implementation.
 //
 // Usage:
 //
@@ -70,21 +70,19 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// race condition created if this write happens after subscribeClient()
-	if err = c.WriteJSON(map[string]string{"subscription_status": "OK", "topic": topic}); err != nil {
+	err = c.WriteJSON(map[string]string{"subscription_status": "OK", "topic": topic})
+	if err != nil {
 		log.Println(err)
 	}
 
 	// get existing clients list for the topic or create a new one
 	clients, topicFound := topicsAndClients.Load(topic)
-	subscribeClient(c, topic, clients, topicFound); err != nil {
-		log.Println("Subscription failed, closing connection")
-		c.Close()
-	}
+	subscribeClient(c, topic, clients, topicFound)
 }
 
-// Publish is an http handler that sends JSON data in the incoming request to all connected clients for the topic specified in the `topic` query parameter.
-// The topic must exist in the topicsAndClients map.
-// The publisher itself doesn't need to be subscribed to the topic.
+// Publish is an http handler that sends JSON data in the incoming request to all connected
+// clients for the topic specified in the `topic` query parameter. The topic must exist in
+// the topicsAndClients map. The publisher itself doesn't need to be subscribed to the topic.
 func publish(w http.ResponseWriter, r *http.Request) {
 	if isValid := sutils.IsValidRequestMethod(w, r); !isValid {
 		return
@@ -121,9 +119,10 @@ func publish(w http.ResponseWriter, r *http.Request) {
 // HELPERS
 /////////////////////////////////////////////////////////////////////////////
 
-// SubscribeClient converts clients subscribed to the given topic into an array and adds the incoming websocket.Conn to the list of subscribed clients for that topic.
-// If the topic doesn't already exist, it's created.
-// The topicsAndClients map is updated with the new topic and/or subscription.
+// SubscribeClient converts clients subscribed to the given topic into an array
+// and adds the incoming websocket.Conn to the list of subscribed clients for that
+// topic. If the topic doesn't already exist, it's created. The topicsAndClients map
+// is updated with the new topic and/or subscription.
 func subscribeClient(c *websocket.Conn, topic string, clients any, topicFound bool) {
 	var clientsSlice []*websocket.Conn
 	if topicFound {
@@ -135,8 +134,10 @@ func subscribeClient(c *websocket.Conn, topic string, clients any, topicFound bo
 	topicsAndClients.Store(topic, clientsSlice)
 }
 
-// BroadcastMessageAndUpdateClients attempts to write the specified requestJson to the list of clients from topicsAndClients for the given topic.
-// If a broken pipe is detected (happens after two attempts at the time of writing this), the client is removed from the list, and topicsAndClients is updated.
+// BroadcastMessageAndUpdateClients attempts to write the specified requestJson to the
+// list of clients from topicsAndClients for the given topic. If a broken pipe is detected
+// (happens after two attempts at the time of writing this), the client is removed from the
+// list, and topicsAndClients is updated.
 func broadcastMessageAndUpdateClients(topic string, requestJson map[string]interface{}, clients any) {
 	// sync.Map returns type 'any', convert to slice to enable indexing
 	var clientsSlice []*websocket.Conn

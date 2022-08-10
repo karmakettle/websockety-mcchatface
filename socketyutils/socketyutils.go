@@ -1,4 +1,5 @@
-// Package socketyutils provides validation, parsing, and logging utilties for the websockety clients, server, and tests.
+// Package socketyutils provides validation, parsing, and logging utilties for the
+// websockety clients, server, and tests.
 package socketyutils
 
 import (

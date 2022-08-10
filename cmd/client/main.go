@@ -1,6 +1,6 @@
-// Package client/main implements a client that subscribes to a topic on a locally running server.
-// It receives messages from third parties that publish to the topic on the server.
-// See server/main for the server implementation.
+// Package client/main implements a client that subscribes to a topic on a locally
+// running server. It receives messages from third parties that publish to the
+// topic on the server. See server/main for the server implementation.
 //
 // Usage:
 //
