@@ -134,25 +134,26 @@ func subscribeClient(c *websocket.Conn, topic string, clients any, topicFound bo
 	topicsAndClients.Store(topic, clientsSlice)
 }
 
-// BroadcastMessageAndUpdateClients attempts to write the specified requestJson to the
-// list of clients from topicsAndClients for the given topic. If a broken pipe is detected
-// (happens after two attempts at the time of writing this), the client is removed from the
-// list, and topicsAndClients is updated.
+// BroadcastMessageAndUpdateClients attempts to write the specified requestJson to the list of clients from topicsAndClients for the given topic.
+// If a broken pipe is detected, the client is removed from the list, and the topicsAndClients map is updated.
 func broadcastMessageAndUpdateClients(topic string, requestJson map[string]interface{}, clients any) {
-	// sync.Map returns type 'any', convert to slice to enable indexing
+	// sync.Map returns type 'any', convert to slice to enable iteration
 	var clientsSlice []*websocket.Conn
 	clientsSlice = clients.([]*websocket.Conn)
 
-	// publish to all clients subscribed to the topic
-	clientsCopy := clientsSlice[:0]
+	// keep track of healthy clients
+	healthyClients := make([]*websocket.Conn, 0)
 	for _, client := range clientsSlice {
-		if err := client.WriteJSON(requestJson); err == nil {
-			clientsCopy = append(clientsCopy, client)
-		} else {
-			// client disconnect detected after two failed write attempts
+		err := client.WriteJSON(requestJson)
+		if err != nil {
+			// don't inlude broken client in updated list
+			// this error (broken pipe) only happens on the second call to WriteJSON after the disconnect...
+			// TODO - detect sooner and clean up before trying to publish to clients?
 			log.Println(err)
+			continue
 		}
+		healthyClients = append(healthyClients, client)
 	}
 
-	topicsAndClients.Store(topic, clientsCopy)
+	topicsAndClients.Store(topic, healthyClients)
 }
