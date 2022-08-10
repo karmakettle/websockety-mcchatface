@@ -52,10 +52,8 @@ func main() {
 // This is accomplished by adding the topic, client to the topicsAndClients map.
 // Clients are only subscribed to one topic at a time.
 func subscribe(w http.ResponseWriter, r *http.Request) {
-	var topic string
-	if reqTopic, isValid := sutils.GetValidTopic(w, r); isValid {
-		topic = reqTopic
-	} else {
+	topic, isValid := sutils.GetValidTopic(w, r)
+	if !isValid {
 		return
 	}
 
@@ -70,9 +68,9 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// race condition created if this write happens after subscribeClient()
-	err = c.WriteJSON(map[string]string{"subscription_status": "OK", "topic": topic})
-	if err != nil {
-		log.Println(err)
+	err1 := c.WriteJSON(map[string]string{"subscription_status": "OK", "topic": topic})
+	if err1 != nil {
+		log.Println(err1)
 	}
 
 	// get existing clients list for the topic or create a new one
@@ -84,19 +82,19 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 // clients for the topic specified in the `topic` query parameter. The topic must exist in
 // the topicsAndClients map. The publisher itself doesn't need to be subscribed to the topic.
 func publish(w http.ResponseWriter, r *http.Request) {
-	if isValid := sutils.IsValidRequestMethod(w, r); !isValid {
+	isValid := sutils.IsValidRequestMethod(w, r)
+	if !isValid {
 		return
 	}
 
-	var topic string
-	if reqTopic, isValid := sutils.GetValidTopic(w, r); isValid {
-		topic = reqTopic
-	} else {
+	topic, isValid1 := sutils.GetValidTopic(w, r)
+	if !isValid1 {
 		return
 	}
 
 	contentType := r.Header.Get("Content-Type")
-	if isValid := sutils.IsValidContentType(w, r, contentType); !isValid {
+	isValid2 := sutils.IsValidContentType(w, r, contentType)
+	if !isValid2 {
 		return
 	}
 
