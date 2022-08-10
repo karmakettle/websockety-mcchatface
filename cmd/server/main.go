@@ -34,6 +34,8 @@ func main() {
 	mux.HandleFunc("/publish", publish)
 
 	log.Printf("Starting server on port %s\n", port)
+	log.Println("Publish to clients subscribed to a topic via /publish. Example:")
+	log.Println("curl -v -X POST -H 'Content-Type:application/json' http://localhost:8081/publish?topic=my_pipeline -d '{\"test\":\"phase_1\"}'")
 	err := http.ListenAndServe(":"+port, mux)
 
 	if err != nil {
@@ -67,12 +69,15 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// race condition created if this write happens after subscribeClient()
+	if err = c.WriteJSON(map[string]string{"subscription_status": "OK", "topic": topic}); err != nil {
+		log.Println(err)
+	}
+
 	// get existing clients list for the topic or create a new one
 	clients, topicFound := topicsAndClients.Load(topic)
-	subscribeClient(c, topic, clients, topicFound)
-
-	if err = c.WriteJSON(map[string]string{"subscription_status": "OK", "topic": topic}); err != nil {
-		log.Println("Subscription confirmation failed, closing connection")
+	subscribeClient(c, topic, clients, topicFound); err != nil {
+		log.Println("Subscription failed, closing connection")
 		c.Close()
 	}
 }
@@ -116,7 +121,7 @@ func publish(w http.ResponseWriter, r *http.Request) {
 // HELPERS
 /////////////////////////////////////////////////////////////////////////////
 
-// SubscribeClient converts clients subscribed to the given topic into a malleable array and adds the incoming websocket.Conn to the list of subscribed clients for that topic.
+// SubscribeClient converts clients subscribed to the given topic into an array and adds the incoming websocket.Conn to the list of subscribed clients for that topic.
 // If the topic doesn't already exist, it's created.
 // The topicsAndClients map is updated with the new topic and/or subscription.
 func subscribeClient(c *websocket.Conn, topic string, clients any, topicFound bool) {
