@@ -16,7 +16,9 @@ go run cmd/server/main.go -port 8081
 Output:
 ```
 $ go run cmd/server/main.go -port 8081
-2022/08/09 14:30:00 Starting server on port 808
+2022/08/10 22:50:19 Starting server on port 8081
+2022/08/10 22:50:19 Publish to clients subscribed to a topic via /publish. Example:
+2022/08/10 22:50:19 curl -v -X POST -H 'Content-Type:application/json' http://localhost:8081/publish?topic=my_pipeline -d '{"test":"phase_1"}'
 ```
 
 #### 2. Connect the clients
@@ -31,31 +33,31 @@ go run cmd/client/main.go -topic my_pipeline -port 8081
 Output:
 ```
 $ go run cmd/client/main.go -topic my_pipeline -port 8081
-2022/08/09 14:30:27 Connecting to ws://localhost:8081/subscribe?topic=my_pipeline
-2022/08/09 14:30:27 {"subscription_status":"OK","topic":"my_pipeline"}
+2022/08/10 22:50:37 Connecting to ws://localhost:8081/subscribe?topic=my_pipeline
+2022/08/10 22:50:37 {"subscription_status":"OK","topic":"my_pipeline"}
 ```
 
 Subscribe more clients to the same topic if desired in separate terminals.
 
 #### 3. Publish to clients
 
-Send an POST request to `/publish` with the topic specified in the query parameters and the JSON data included in the body. Curl example:
+Send a POST request to `/publish` with the topic specified in the query parameters and the JSON data included in the body. Curl example:
 
 ```bash
 curl -v -X POST -H 'Content-Type:application/json' \
-  localhost:8081/publish?topic=my_pipeline -d '{"test":"phase_1"}'
+  http://localhost:8081/publish?topic=my_pipeline -d '{"test":"phase_1"}'
 ```
 
 Sample output from a connected client's perspective:
 ```
-$ go run cmd/client/main.go -topic my_pipeline -port 8081
-2022/08/09 14:30:27 Connecting to ws://localhost:8081/subscribe?topic=my_pipeline
-2022/08/09 14:30:27 {"subscription_status":"OK","topic":"my_pipeline"}
-2022/08/09 14:31:30 {"test":"phase_1"}
+e$ go run cmd/client/main.go -topic my_pipeline -port 8081
+2022/08/10 22:51:01 Connecting to ws://localhost:8081/subscribe?topic=my_pipeline
+2022/08/10 22:51:01 {"subscription_status":"OK","topic":"my_pipeline"}
+2022/08/10 22:51:09 {"test":"phase_1"}
 ```
 
 ### Run tests
 
 ```bash
-go test -v cmd/server/*
+go test -v ./...
 ```
