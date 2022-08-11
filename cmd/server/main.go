@@ -25,8 +25,8 @@ var topicsAndClients sync.Map
 func main() {
 	log.SetOutput(os.Stdout)
 
-	var addr string
-	flag.StringVar(&addr, "addr", "localhost", "Optionally provide the server url")
+	var host string
+	flag.StringVar(&host, "host", "localhost", "Optionally provide the server url")
 
 	var port string
 	flag.StringVar(&port, "port", "8081", "Optionally provide the server port")
@@ -36,10 +36,10 @@ func main() {
 	mux.HandleFunc("/subscribe", subscribe)
 	mux.HandleFunc("/publish", publish)
 
-	log.Printf("Starting server at %s on port %s\n", addr, port)
+	log.Printf("Starting server at %s on port %s\n", host, port)
 	log.Println("Publish to clients subscribed to a topic via /publish. Example:")
-	log.Printf("curl -v -X POST -H 'Content-Type:application/json' http://%s:%s/publish?topic=my_pipeline -d '{\"test\":\"phase_1\"}'", addr, port)
-	err := http.ListenAndServe(addr+":"+port, mux)
+	log.Printf("curl -v -X POST -H 'Content-Type:application/json' http://%s:%s/publish?topic=my_pipeline -d '{\"test\":\"phase_1\"}'", host, port)
+	err := http.ListenAndServe(host+":"+port, mux)
 
 	if err != nil {
 		log.Fatalf("Server error: %s\n", err)
