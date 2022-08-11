@@ -18,9 +18,11 @@ go run cmd/server/main.go -host localhost -port 8081
 Output:
 ```
 $ go run cmd/server/main.go -host localhost -port 8081
-2022/08/11 00:17:13 Starting server at localhost on port 8081
-2022/08/11 00:17:13 Publish to clients subscribed to a topic via /publish. Example:
-2022/08/11 00:17:13 curl -v -X POST -H 'Content-Type:application/json' http://localhost:8081/publish?topic=my_pipeline -d '{"test":"phase_1"}'
+2022/08/11 00:56:24 Starting websocket server at localhost on port 8081
+2022/08/11 00:56:24 Available at: ws://localhost:8081/subscribe?topic=my_topic
+2022/08/11 00:56:24 Send to all connected clients on a given topic with: http://localhost:8081/publish?topic=my_favorite_topic
+2022/08/11 00:56:24 Example:
+2022/08/11 00:56:24 curl -v -X POST -H 'Content-Type:application/json' http://localhost:8081/publish?topic=my_pipeline -d '{"test":"phase_1"}'
 ```
 
 #### 2. Connect the clients

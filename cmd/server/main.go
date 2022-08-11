@@ -36,8 +36,10 @@ func main() {
 	mux.HandleFunc("/subscribe", subscribe)
 	mux.HandleFunc("/publish", publish)
 
-	log.Printf("Starting server at %s on port %s\n", host, port)
-	log.Println("Publish to clients subscribed to a topic via /publish. Example:")
+	log.Printf("Starting websocket server at %s on port %s\n", host, port)
+	log.Printf("Available at: ws://%s:%s/subscribe?topic=my_topic", host, port)
+	log.Printf("Send to all connected clients on a given topic with: http://%s:%s/publish?topic=my_favorite_topic", host, port)
+	log.Println("Example:")
 	log.Printf("curl -v -X POST -H 'Content-Type:application/json' http://%s:%s/publish?topic=my_pipeline -d '{\"test\":\"phase_1\"}'", host, port)
 	err := http.ListenAndServe(host+":"+port, mux)
 
