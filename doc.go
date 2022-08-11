@@ -5,7 +5,7 @@
 //
 // Usage:
 //
-//     go run cmd/server/main.go [-port]
+//	go run cmd/server/main.go [-port]
 //
 // The port flag is optional and defaults to 8081.
 //
@@ -15,14 +15,14 @@
 //
 // Usage:
 //
-//     go run cmd/client/main.go [flags]
+//	go run cmd/client/main.go [flags]
 //
 // Flags:
 //
-//     -topic
-//       Topic to receive incoming messages from (required).
-//     -port
-//       Port the server is running on (optional, defaults to 8081).
+//	-topic
+//	  Topic to receive incoming messages from (required).
+//	-port
+//	  Port the server is running on (optional, defaults to 8081).
 //
 // package socketyutils // import "github.com/karmakettle/websockety-mcchatface/socketyutils"
 //
@@ -35,5 +35,4 @@
 // func IsValidRequestMethod(w http.ResponseWriter, r *http.Request) bool
 // func ParseJsonFromRequest(w http.ResponseWriter, r *http.Request) (map[string]interface{}, bool)
 // func ReadJson(c *websocket.Conn) (interface{}, bool)
-//
 package doc

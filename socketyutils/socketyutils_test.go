@@ -1,8 +1,8 @@
 package socketyutils
 
 import (
-  "net/http/httptest"
-  "testing"
+	"net/http/httptest"
+	"testing"
 )
 
 func TestGetValidTopic(t *testing.T) {
