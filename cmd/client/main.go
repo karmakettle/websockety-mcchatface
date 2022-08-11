@@ -29,6 +29,9 @@ func main() {
 	var topic string
 	flag.StringVar(&topic, "topic", "", "Topic for subscription")
 
+	var addr string
+	flag.StringVar(&addr, "addr", "localhost", "Optionally provide the server url")
+
 	var port string
 	flag.StringVar(&port, "port", "8081", "Optionally provide the server port")
 	flag.Parse()
@@ -38,7 +41,7 @@ func main() {
 		return
 	}
 
-	u := url.URL{Scheme: "ws", Host: "localhost:" + port, Path: "/subscribe", RawQuery: "topic=" + topic}
+	u := url.URL{Scheme: "ws", Host: addr + ":" + port, Path: "/subscribe", RawQuery: "topic=" + topic}
 	log.Printf("Connecting to %s\n", u.String())
 
 	// POST? https://github.com/gorilla/websocket/issues/689
