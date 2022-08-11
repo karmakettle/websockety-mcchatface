@@ -11,7 +11,7 @@ Get the latest version of the server and start it (`-host` and `-port` are optio
 ```bash
 git clone https://github.com/karmakettle/websockety-mcchatface.git
 cd websockety-mcchatface
-# make sure your GOPATH is in a good state (or modify the .source_me file and run "source .source_me")
+# make sure GOPATH is in a good state (or modify .source_me file and run "source .source_me")
 go run cmd/server/main.go -host localhost -port 8081
 ```
 
