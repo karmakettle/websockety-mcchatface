@@ -36,3 +36,4 @@
 // func ParseJsonFromRequest(w http.ResponseWriter, r *http.Request) (map[string]interface{}, bool)
 // func ReadJson(c *websocket.Conn) (interface{}, bool)
 //
+package doc

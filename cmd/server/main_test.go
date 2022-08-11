@@ -8,134 +8,129 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 var testTopic = "sockety_pipeline"
 var testJson = "{\"a\":\"json\"}"
 
-func TestGetValidTopic(t *testing.T) {
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "http://localhost:8081/subscribe", nil)
-
-	// missing topic should be marked as invalid
-	_, isValid := sutils.GetValidTopic(w, req)
-	if isValid {
-		t.Error("Validation should have failed for request with a url without a topic")
-	}
-
-	testTopic := "sockety_pipeline"
-	req = httptest.NewRequest("POST", "http://localhost:8081/subscribe?topic="+testTopic, nil)
-	topic, isValid := sutils.GetValidTopic(w, req)
-	if !isValid {
-		t.Error("Failed to retrieve valid topic from request url")
-	} else if topic != testTopic {
-		t.Errorf("Got %q but wanted %q", topic, testTopic)
-	}
-}
-
-func TestSubscribe(t *testing.T) {
-	// confirm that topic / client list isn't populated for the test topic
+func TestPubSubIntegration(t *testing.T) {
+	// confirm that topicsAndClients map isn't already populated
 	_, topicFound := topicsAndClients.Load(testTopic)
 	if topicFound {
 		t.Error("topicsAndClients map is already populated")
 	}
 
-	// set up test subscribe handler (ws endpoint)
+	// set up mock server using the subscribe handler
 	subscribeHandler := http.HandlerFunc(subscribe)
 	subscribeServer := httptest.NewServer(subscribeHandler)
 	defer subscribeServer.Close()
 
-	surl := subscribeServer.URL
-	surl += "/subscribe?topic=" + testTopic
-	surl = strings.Replace(surl, "http://", "ws://", 1)
-	t.Log(surl)
+	// some hackery to make this fake server work with websockets
+	serverUrl := subscribeServer.URL
+	serverUrl += "/subscribe?topic=" + testTopic
+	serverUrl = strings.Replace(serverUrl, "http://", "ws://", 1)
+	t.Log(serverUrl)
 
-	// let's try subscribing a client
-	cxnOne, _, err := websocket.DefaultDialer.Dial(surl, nil)
+	// subscribe two clients to the test topic
+	cxn1, _, err := websocket.DefaultDialer.Dial(serverUrl, nil)
 	if err != nil {
 		t.Error("Dial:", err)
 	}
-	defer cxnOne.Close()
+	defer cxn1.Close()
 
-	clientsSlice := getClients(t)
-	// assert one client subscribed
-	if len(clientsSlice) != 1 {
-		t.Errorf("Found %d client(s) subscribed to %s but expected 1", len(clientsSlice), testTopic)
-	}
-
-	// subscribe another client
-	cxnTwo, _, err := websocket.DefaultDialer.Dial(surl, nil)
+	cxn2, _, err := websocket.DefaultDialer.Dial(serverUrl, nil)
 	if err != nil {
 		t.Error("Dial:", err)
 	}
-	defer cxnTwo.Close()
+	defer cxn2.Close()
 
-	clientsSlice = getClients(t)
-	// assert two clients subscribed
-	if len(clientsSlice) != 2 {
-		t.Errorf("Found %d client(s) subscribed to %s but expected 2", len(clientsSlice), testTopic)
+	// lazy hack to wait for Dial() to complete
+	time.Sleep(2 * time.Second)
+
+	// assert two clients are subscribed to the test topic
+	twoClients := getConnectedClients(t)
+	if len(twoClients) != 2 {
+		t.Errorf("Found %d client(s) subscribed to %s but expected 2", len(twoClients), testTopic)
 	}
 
-	// set up test publish handler (http endpoint)
+	// set up a mock server using the publish handler
 	publishHandler := http.HandlerFunc(publish)
 	publishServer := httptest.NewServer(publishHandler)
 	defer publishServer.Close()
 
-	purl := publishServer.URL
-	purl += "/publish?topic=" + testTopic
-	t.Log(purl)
+	publishUrl := publishServer.URL
+	publishUrl += "/publish?topic=" + testTopic
+	t.Log(publishUrl)
+
+	resp := publishToTest(t, publishUrl, testJson)
+	resp.Body.Close()
 
 	// assert that both clients receive a published message
-	resp := publishToTest(t, purl, testJson)
-	resp.Body.Close()
-	if cxnOneJson, ok := sutils.ReadJson(cxnOne); !ok {
+	// check first client
+	cxn1Json, ok1 := sutils.ReadJson(cxn1)
+	if ok1 {
+		jsonString := sutils.Dump(cxn1Json)
+		if !strings.Contains(jsonString, testTopic) {
+			t.Errorf("Expected test topic to be present in JSON response, but instead received: %s", jsonString)
+		}
+	} else {
 		t.Errorf("First client failed to read JSON published to %s\n", testTopic)
-	} else {
-		t.Log("JSON received! " + sutils.Dump(cxnOneJson))
 	}
 
-	if cxnTwoJson, ok := sutils.ReadJson(cxnTwo); !ok {
+	// check second client
+	cxn2Json, ok2 := sutils.ReadJson(cxn2)
+	if ok2 {
+		jsonString := sutils.Dump(cxn2Json)
+		if !strings.Contains(jsonString, testTopic) {
+			t.Errorf("Expected test topic to be present in JSON response, but instead received: %s", jsonString)
+		}
+	} else {
 		t.Errorf("Second client failed to read JSON published to %s\n", testTopic)
-	} else {
-		t.Log("JSON received! " + sutils.Dump(cxnTwoJson))
 	}
 
-	// closing connection and publishing twice to the topic should remove the dead client
-	cxnOne.Close()
+	// close one of the connections to test client cleanup implementation
+	cxn1.Close()
+
+	// hack: publishing twice to the topic should remove the dead client...
+	// TODO - adding ping/pong handling would take care of this cleanup
 	t.Log("Publish once!")
-	respOne := publishToTest(t, purl, testJson)
-	respOne.Body.Close()
+	resp1 := publishToTest(t, publishUrl, testJson)
+	resp1.Body.Close()
+
 	t.Log("Publish twice!")
-	respTwo := publishToTest(t, purl, testJson)
-	respTwo.Body.Close()
+	resp2 := publishToTest(t, publishUrl, testJson)
+	resp2.Body.Close()
 
 	// assert one client left standing
-	clientsSlice = getClients(t)
-	if len(clientsSlice) != 1 {
-		t.Errorf("Found %d client(s) subscribed to %s but expected 1", len(clientsSlice), testTopic)
+	leftoverClients := getConnectedClients(t)
+	if len(leftoverClients) != 1 {
+		t.Errorf("Found %d client(s) subscribed to %s but expected 1", len(leftoverClients), testTopic)
 	}
 
-	// verify client doesn't exit on reading invalid JSON
-	invalidJsonResp := publishToTest(t, purl, "nope")
+	// verify client doesn't exit on receiving invalid JSON
+	invalidJsonResp := publishToTest(t, publishUrl, "nope")
 	invalidJsonResp.Body.Close()
 
 	// JSON error
-	if _, ok := sutils.ReadJson(cxnTwo); ok {
+	_, ok3 := sutils.ReadJson(cxn2)
+	if ok3 {
 		t.Log("Second client detected the invalid JSON, and the connection remained open")
 	} else {
 		t.Error("Second client failed to detect invalid JSON")
 	}
 }
 
-func getClients(t *testing.T) []*websocket.Conn {
+func getConnectedClients(t *testing.T) []*websocket.Conn {
 	clients, topicFound := topicsAndClients.Load(testTopic)
 	var clientsSlice []*websocket.Conn
+
 	// assert topic created / exists
-	if !topicFound {
-		t.Errorf("%q should exist in topicsAndClients map but wasn't found", testTopic)
-	} else {
+	if topicFound {
 		// sync.Map returns type 'any', convert to slice to enable append
 		clientsSlice = clients.([]*websocket.Conn)
+	} else {
+		t.Errorf("%q should exist in topicsAndClients map but wasn't found", testTopic)
 	}
 
 	return clientsSlice
@@ -156,7 +151,7 @@ func publishToTest(t *testing.T, url string, jsonString string) *http.Response {
 }
 
 func TestPublish(t *testing.T) {
-	// set up test publish handler (http endpoint)
+	// set up mock server with publish handler
 	publishHandler := http.HandlerFunc(publish)
 	publishServer := httptest.NewServer(publishHandler)
 	defer publishServer.Close()
@@ -167,9 +162,9 @@ func TestPublish(t *testing.T) {
 
 	// error response for no topic in request
 	noTopicResp := publishToTest(t, purl, testJson)
-	noTopicRespBody, err := io.ReadAll(noTopicResp.Body)
-	if err != nil {
-		t.Error(err)
+	noTopicRespBody, err1 := io.ReadAll(noTopicResp.Body)
+	if err1 != nil {
+		t.Error(err1)
 	} else if !strings.Contains(string(noTopicRespBody), "No topic specified") {
 		t.Error("Request to publish with no topic should have failed")
 	}
@@ -178,9 +173,9 @@ func TestPublish(t *testing.T) {
 	// error response on empty request data
 	purl += "?topic=" + testTopic
 	emptyDataResp := publishToTest(t, purl, "")
-	emptyDataRespBody, err := io.ReadAll(emptyDataResp.Body)
-	if err != nil {
-		t.Error(err)
+	emptyDataRespBody, err2 := io.ReadAll(emptyDataResp.Body)
+	if err2 != nil {
+		t.Error(err2)
 	} else if !strings.Contains(string(emptyDataRespBody), "Empty body") {
 		t.Error("Request to publish with no data should have failed")
 	}
@@ -188,9 +183,9 @@ func TestPublish(t *testing.T) {
 
 	// error response on invalid request json
 	invalidJsonResp := publishToTest(t, purl, "nope")
-	invalidJsonRespBody, err := io.ReadAll(invalidJsonResp.Body)
-	if err != nil {
-		t.Error(err)
+	invalidJsonRespBody, err3 := io.ReadAll(invalidJsonResp.Body)
+	if err3 != nil {
+		t.Error(err3)
 	} else if !strings.Contains(string(invalidJsonRespBody), "Invalid JSON") {
 		t.Error("Request to publish with invalid JSON should have failed")
 	}
@@ -199,9 +194,9 @@ func TestPublish(t *testing.T) {
 	// error response on topic that hasn't been created
 	purl = strings.Replace(purl, testTopic, "newTopic", 1)
 	invalidTopicResp := publishToTest(t, purl, testJson)
-	invalidTopicRespBody, err := io.ReadAll(invalidTopicResp.Body)
-	if err != nil {
-		t.Error(err)
+	invalidTopicRespBody, err4 := io.ReadAll(invalidTopicResp.Body)
+	if err4 != nil {
+		t.Error(err4)
 	} else if !strings.Contains(string(invalidTopicRespBody), "doesn't exist") {
 		t.Error("Request to publish to nonexistent topic should have failed")
 	}
